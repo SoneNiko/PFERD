@@ -50,15 +50,16 @@ class IliasPageElement:
     def id(self) -> str:
         regexes = [
             r"eid=(?P<id>[0-9a-z\-]+)",
-            r"file_(?P<id>\d+)",
-            r"copa_(?P<id>\d+)",
-            r"fold_(?P<id>\d+)",
-            r"frm_(?P<id>\d+)",
-            r"exc_(?P<id>\d+)",
+            r"file/(?P<id>\d+)",
+            r"copa/(?P<id>\d+)",
+            r"fold/(?P<id>\d+)",
+            r"frm/(?P<id>\d+)",
+            r"exc/(?P<id>\d+)",
             r"thr_pk=(?P<id>\d+)",  # forums
             r"ref_id=(?P<id>\d+)",
             r"target=[a-z]+_(?P<id>\d+)",
-            r"mm_(?P<id>\d+)"
+            r"mm/(?P<id>\d+)",
+            r"grp/(?P<id>\d+)"
         ]
 
         for regex in regexes:
@@ -1244,6 +1245,7 @@ class IliasPage:
         if mainbar is not None:
             login_button = mainbar.find(attrs={"href": lambda x: x is not None and "login.php" in x})
             shib_login = soup.find(id="button_shib_login")
+            print(login_button, shib_login)
             return not login_button and not shib_login
 
         # Personal Desktop
@@ -1301,10 +1303,34 @@ class IliasPage:
 
     @staticmethod
     def get_soup_permalink(soup: BeautifulSoup) -> Optional[str]:
-        perma_link_element = cast(Tag, soup.select_one(".il-footer-permanent-url > a"))
-        if not perma_link_element or not perma_link_element.get("href"):
-            return None
-        return cast(Optional[str], perma_link_element.get("href"))
+        # First try the old <a> tag pattern
+        perma_link_element = soup.select_one(".il-footer-permanent-url > a")
+        if perma_link_element and perma_link_element.get("href"):
+            return perma_link_element.get("href")
+
+        # If no <a> tag found, look for the new button pattern
+        button = soup.select_one(".il-footer-permanent-url > button")
+        if button:
+            # Check for data attribute approach
+            # if button.has_attr('data-url'):
+            #     return button['data-url']
+            #
+            # # Check for onclick attribute approach
+            # if button.has_attr('onclick'):
+            #     match = re.search(re.compile("copyText\(['\"](.+?)['\"]\)"), button['onclick'])
+            #     if match:
+            #         return match.group(1).replace('\\/', '/')
+
+            # Check for script-based approach
+            button_id = button.get('id')
+            if button_id:
+                script = soup.find('script', string=re.compile(f'document.getElementById\("{button_id}"\)'))
+                if script:
+                    match = re.search(r'copyText\(["\'](.+?)["\']\)', script.string)
+                    if match:
+                        return match.group(1).replace('\\/', '/')
+
+        return None
 
 
 def _unexpected_html_warning() -> None:

@@ -267,7 +267,8 @@ instance's greatest bottleneck.
                     # If we expect to find a root course, enforce it
                     if current_parent is None and expected_course_id is not None:
                         perma_link = IliasPage.get_soup_permalink(soup)
-                        if not perma_link or "crs_" not in perma_link:
+                        print(f"Testicles: {perma_link}, {url} {current_element}")
+                        if not perma_link or "crs/" not in perma_link:
                             raise CrawlError("Invalid course id? Didn't find anything looking like a course")
                         if str(expected_course_id) not in perma_link:
                             raise CrawlError(f"Expected course id {expected_course_id} but got {perma_link}")
@@ -939,6 +940,7 @@ instance's greatest bottleneck.
 
     async def _get_page(self, url: str, root_page_allowed: bool = False) -> BeautifulSoup:
         auth_id = await self._current_auth_id()
+        print(auth_id)
         async with self.session.get(url) as request:
             soup = soupify(await request.read())
             if IliasPage.is_logged_in(soup):
@@ -1019,7 +1021,7 @@ instance's greatest bottleneck.
             async with self.session.get(urljoin(self._base_url, "/login.php"), params=params) as request:
                 login_page = soupify(await request.read())
 
-            login_form = cast(Optional[Tag], login_page.find("form", attrs={"name": "formlogin"}))
+            login_form = cast(Optional[Tag], login_page.find("form", attrs={"name": "login_form"}))
             if login_form is None:
                 raise CrawlError("Could not find the login form! Specified client id might be invalid.")
 
@@ -1035,9 +1037,20 @@ instance's greatest bottleneck.
                 "cmd[doStandardAuthentication]": "Login",
             }
 
+            login_form_data = aiohttp.FormData()
+
+            login_form_data.add_field('login_form/input_3/input_4', username)
+            login_form_data.add_field('login_form/input_3/input_5', password)
+
+            print(urljoin(self._base_url, login_url))
+
             # do the actual login
-            async with self.session.post(urljoin(self._base_url, login_url), data=login_data) as request:
-                soup = soupify(await request.read())
+            async with self.session.post(urljoin(self._base_url, login_url), data=login_form_data) as request:
+                result = await request.read()
+                with open("out.html", "wb") as f:
+                    f.write(result)
+
+                soup = soupify(result)
                 if not self._is_logged_in(soup):
                     self._auth.invalidate_credentials()
 
